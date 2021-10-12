@@ -1,21 +1,35 @@
 import os
 import tempfile
 
-from django.core.files.base import ContentFile
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from feincms3.utils import upload_to
 
 import feincms3_downloads.checks  # noqa: F401
 from feincms3_downloads.previews import preview_as_jpeg
 
+from filer.fields.file import FilerFileField
+from filer.fields.image import FilerImageField
+from filer.models import Folder, Image
+
 
 class DownloadBase(models.Model):
-    file = models.FileField(_("file"), upload_to=upload_to)
+    file = FilerFileField(
+        verbose_name=_('file'),
+        related_name="+",
+        on_delete=models.CASCADE,
+    )
     file_size = models.IntegerField(_("file size"), editable=False)
     caption = models.CharField(_("caption"), max_length=100, blank=True)
     show_preview = models.BooleanField(_("show preview"), default=True)
-    preview = models.ImageField(_("preview"), blank=True, upload_to=upload_to)
+    # renamed to preview_image for automatic hiding of the
+    # related-widget-wrapper links by django-filers css
+    preview_image = FilerImageField(
+        verbose_name=_('preview'),
+        null=True,
+        blank=True,
+        related_name="+",
+        on_delete=models.SET_NULL,
+    )
 
     class Meta:
         abstract = True
@@ -23,7 +37,7 @@ class DownloadBase(models.Model):
         verbose_name_plural = _("downloads")
 
     def __str__(self):
-        return self.file.name
+        return self.basename
 
     def save(self, *args, **kwargs):
         self.file_size = self.file.size
@@ -39,7 +53,7 @@ class DownloadBase(models.Model):
 
     @property
     def basename(self):
-        return os.path.basename(self.file.name)
+        return os.path.basename(self.file.file.name)
 
     @property
     def caption_or_basename(self):
@@ -47,12 +61,19 @@ class DownloadBase(models.Model):
 
 
 def generate_preview(*, source, preview):
-    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(source.name)[1]) as f:
-        source.open()
-        source.seek(0)
-        f.write(source.read())
+    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(source.file.name)[1]) as f:
+        source.file.open()
+        source.file.seek(0)
+        f.write(source.file.read())
         f.seek(0)
         if p := preview_as_jpeg(f.name):
-            preview.save("preview.jpg", ContentFile(p), save=False)
-            return True
+            preview_folder = Folder.objects.get_or_create(
+                    name='download_previews')[0]
+            filename = f'{source.file.original_filename}.jpg'
+            filer_image = Image.objects.create(
+                original_filename=filename,
+                file=p,
+                folder=preview_folder
+            )
+            return filer_image
         return False
