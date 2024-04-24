@@ -21,9 +21,7 @@ class DownloadBase(models.Model):
     file_size = models.IntegerField(_("file size"), editable=False)
     caption = models.CharField(_("caption"), max_length=100, blank=True)
     show_preview = models.BooleanField(_("show preview"), default=True)
-    # renamed to preview_image for automatic hiding of the
-    # related-widget-wrapper links by django-filers css
-    preview_image = FilerImageField(
+    preview = FilerImageField(
         verbose_name=_('preview'),
         null=True,
         blank=True,
@@ -45,8 +43,12 @@ class DownloadBase(models.Model):
         if (
             self.show_preview
             and not self.preview
-            and generate_preview(source=self.file, preview=self.preview)
+            and (
+                preview := generate_preview(
+                    source=self.file, preview=self.preview)
+            )
         ):
+            self.preview = preview
             super().save()
 
     save.alters_data = True
@@ -69,11 +71,14 @@ def generate_preview(*, source, preview):
         if p := preview_as_jpeg(f.name):
             preview_folder = Folder.objects.get_or_create(
                     name='download_previews')[0]
-            filename = f'{source.file.original_filename}.jpg'
+            filename = f'{source.original_filename}.jpg'
             filer_image = Image.objects.create(
                 original_filename=filename,
                 file=p,
                 folder=preview_folder
             )
+            p.close()
+            source.file.close()
             return filer_image
-        return False
+        source.file.close()
+        return None

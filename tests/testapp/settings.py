@@ -16,6 +16,8 @@ INSTALLED_APPS = [
     # Libraries
     "feincms3",
     "content_editor",
+    "filer",
+    'easy_thumbnails',
 ]
 
 MEDIA_ROOT = "/media/"

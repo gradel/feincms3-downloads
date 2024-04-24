@@ -3,7 +3,6 @@ import tempfile
 
 from django.core.files import File
 
-
 def preview_as_jpeg(path):
     with tempfile.TemporaryDirectory() as directory:
         preview = "%s/preview.jpg" % directory
@@ -35,3 +34,5 @@ def preview_as_jpeg(path):
 
         if ret == 0:
             return File(open(preview, 'rb'), name='preview.jpg')
+            #  with open(preview, 'rb') as f:
+            #      return File(f, name='preview.jpg')

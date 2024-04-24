@@ -8,7 +8,9 @@ from django.test import Client, TestCase
 from django.utils.translation import deactivate_all
 from PIL import Image
 
-from testapp.models import HTML, Article, Download
+from filer.models import File, Folder
+
+from .models import HTML, Article, Download
 
 
 def zero_management_form_data(prefix):
@@ -60,7 +62,19 @@ class Test(TestCase):
             parent=article, ordering=1, region="main", html="<b>Hello</b>"
         )
         download = Download(parent=article, ordering=2, region="main")
-        download.file.save("world.txt", ContentFile("World"))
+        preview_folder = Folder.objects.get_or_create(
+                name='download_previews')[0]
+        filename = 'world.txt'
+        content_file = ContentFile(b'World', filename)
+        download_file = File.objects.create(
+            original_filename=filename,
+            file=content_file,
+            folder=preview_folder,
+        )
+        download_file.name = filename
+        download_file.save()
+        download.file = download_file
+        download.save()
 
         response = self.client.get(f"/{article.pk}/")
         self.assertContains(response, "<b>Hello</b>")
@@ -79,54 +93,78 @@ class Test(TestCase):
 
     def test_preview(self):
         client = self.login()
-        with openimage("smallliz.tif") as f:
-            response = client.post(
-                "/admin/testapp/article/add/",
-                merge_dicts(
-                    zero_management_form_data("testapp_html_set"),
-                    zero_management_form_data("testapp_download_set"),
-                    {
-                        "testapp_download_set-TOTAL_FORMS": 1,
-                        "testapp_download_set-0-file": f,
-                        "testapp_download_set-0-region": "main",
-                        "testapp_download_set-0-ordering": "10",
-                        "testapp_download_set-0-show_preview": "1",
-                    },
-                ),
+        preview_folder = Folder.objects.get_or_create(
+                name='download_previews')[0]
+        filename = 'smallliz.tif'
+        with openimage(filename) as f:
+            content_file = ContentFile(f.read(), filename)
+            download_file = File.objects.create(
+                original_filename=filename,
+                file=content_file,
+                folder=preview_folder,
             )
+            download_file.name = filename
+            download_file.save()
+        response = client.post(
+            "/admin/testapp/article/add/",
+            merge_dicts(
+                zero_management_form_data("testapp_html_set"),
+                zero_management_form_data("testapp_download_set"),
+                {
+                    "testapp_download_set-TOTAL_FORMS": 1,
+                    "testapp_download_set-0-file": download_file.pk,
+                    "testapp_download_set-0-region": "main",
+                    "testapp_download_set-0-ordering": "10",
+                    "testapp_download_set-0-show_preview": "1",
+                },
+            ),
+        )
 
         self.assertRedirects(response, "/admin/testapp/article/")
 
         download = Download.objects.get()
         self.assertEqual(download.file_size, 5052)
-        self.assertTrue(download.preview.name.endswith(".jpg"))
+        self.assertTrue(download.preview.file.name.endswith(".jpg"))
 
-        image = Image.open(download.preview)
+        image = Image.open(download.preview.file)
         self.assertEqual(image.size, (160, 160))
+        image.close()
 
     def test_large_image(self):
         client = self.login()
-        with openimage("yes.pdf") as f:
-            response = client.post(
-                "/admin/testapp/article/add/",
-                merge_dicts(
-                    zero_management_form_data("testapp_html_set"),
-                    zero_management_form_data("testapp_download_set"),
-                    {
-                        "testapp_download_set-TOTAL_FORMS": 1,
-                        "testapp_download_set-0-file": f,
-                        "testapp_download_set-0-region": "main",
-                        "testapp_download_set-0-ordering": "10",
-                        "testapp_download_set-0-show_preview": "1",
-                    },
-                ),
+        preview_folder = Folder.objects.get_or_create(
+                name='download_previews')[0]
+        filename = 'yes.pdf'
+        with openimage(filename) as f:
+            content_file = ContentFile(f.read(), filename)
+            download_file = File.objects.create(
+                original_filename=filename,
+                file=content_file,
+                folder=preview_folder,
             )
+            download_file.name = filename
+            download_file.save()
+        response = client.post(
+            "/admin/testapp/article/add/",
+            merge_dicts(
+                zero_management_form_data("testapp_html_set"),
+                zero_management_form_data("testapp_download_set"),
+                {
+                    "testapp_download_set-TOTAL_FORMS": 1,
+                    "testapp_download_set-0-file": download_file.pk,
+                    "testapp_download_set-0-region": "main",
+                    "testapp_download_set-0-ordering": "10",
+                    "testapp_download_set-0-show_preview": "1",
+                },
+            ),
+        )
 
         self.assertRedirects(response, "/admin/testapp/article/")
 
         download = Download.objects.get()
         self.assertEqual(download.file_size, 15325)
-        self.assertTrue(download.preview.name.endswith(".jpg"))
+        self.assertTrue(download.preview.file.name.endswith(".jpg"))
 
-        image = Image.open(download.preview)
+        image = Image.open(download.preview.file)
         self.assertTrue(image.size[0] <= 310)
+        image.close()
