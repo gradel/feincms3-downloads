@@ -1,6 +1,7 @@
 import os
 import tempfile
 
+from django.core.files.base import ContentFile
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -74,10 +75,10 @@ def generate_preview(*, source, preview):
             filename = f'{source.original_filename}.jpg'
             filer_image = Image.objects.create(
                 original_filename=filename,
-                file=p,
+                name=filename,
+                file=ContentFile(p, name=filename),
                 folder=preview_folder
             )
-            p.close()
             source.file.close()
             return filer_image
         source.file.close()

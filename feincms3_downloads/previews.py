@@ -1,7 +1,6 @@
 import subprocess
 import tempfile
 
-from django.core.files import File
 
 def preview_as_jpeg(path):
     with tempfile.TemporaryDirectory() as directory:
@@ -33,6 +32,5 @@ def preview_as_jpeg(path):
         ret = subprocess.call(cmd, env={"PATH": "/usr/local/bin:/usr/bin:/bin"})
 
         if ret == 0:
-            return File(open(preview, 'rb'), name='preview.jpg')
-            #  with open(preview, 'rb') as f:
-            #      return File(f, name='preview.jpg')
+            with open(preview, "rb") as f:
+                return f.read()

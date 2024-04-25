@@ -124,7 +124,7 @@ class Test(TestCase):
 
         download = Download.objects.get()
         self.assertEqual(download.file_size, 5052)
-        self.assertTrue(download.preview.file.name.endswith(".jpg"))
+        self.assertTrue(download.preview.name.endswith(".jpg"))
 
         image = Image.open(download.preview.file)
         self.assertEqual(image.size, (160, 160))
